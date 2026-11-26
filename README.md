@@ -25,13 +25,13 @@ python3 -m http.server 8000
 
 打开 http://localhost:8000 。`/arcade/#hall` 可以跳过投币直接进大厅。
 
-## 部署（GitHub Pages → https://arcade.eleven666.cyou）
+## 部署（GitHub Pages → https://game.eleven666.cyou）
 
 仓库根目录的 `CNAME` 文件写着自定义域名，`.nojekyll` 让 Pages 原样发布静态文件。
 
 1. 仓库需为公开（或账号是 GitHub 付费版）。
 2. Settings → Pages → Build and deployment：Source 选 **Deploy from a branch**，分支选发布分支、目录 `/ (root)`，保存。
-3. 同一页 Custom domain 应自动显示 `arcade.eleven666.cyou`；证书签好后勾选 **Enforce HTTPS**。
-4. 域名 DNS 加一条 CNAME：主机记录 `arcade` → `el-even1.github.io`。
+3. 同一页 Custom domain 应自动显示 `game.eleven666.cyou`；证书签好后勾选 **Enforce HTTPS**。
+4. 域名 DNS 加一条 CNAME：主机记录 `game` → `el-even1.github.io`。
 
 之后往发布分支推送，网站一两分钟内自动更新。
