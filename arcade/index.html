@@ -64,6 +64,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .hallmode .hud,.hallmode .keys{opacity:1}
 .hallmode .cui{opacity:0}
 @keyframes blink{50%{opacity:0}}
+@media (max-height:700px) and (max-width:640px){.panel .ds{display:none}}
 @media (max-width:640px){
   .cui .title{top:calc(max(22px,env(safe-area-inset-top)) + 40px);letter-spacing:.3em;font-size:16px}
   .panel{grid-template-columns:auto 1fr;padding:12px}
@@ -301,17 +302,22 @@ const H = { intro: null, launch: null, zoom: 1, fx: 0, fy: 0, t: 0, swipe: null,
 // 图片（游戏立绘缩成像素头像）
 for (const c of cabs) if (c.g) c.imgs = c.g.art.map(src => { const im = new Image(); im.src = root(src); return im; });
 
-// 像素文字：小字号画到离屏画布再做阈值 → 硬边像素字
+// 像素文字：按 K 倍精度画到离屏画布再做阈值 → 硬边像素字。
+// K=2：每个文字像素是场景像素的一半，保留像素感，中文笔画也看得清
+const TEXT_K = 2;
 const textCache = new Map();
 function ptext(str, size, color, weight = 900, family = '"WenQuanYi Zen Hei Sharp","PingFang SC","Microsoft YaHei",sans-serif') {
   const key = [str, size, color, weight, family].join('|'); if (textCache.has(key)) return textCache.get(key);
-  const c = document.createElement('canvas'), g = c.getContext('2d'), font = `${weight} ${size}px ${family}`;
-  g.font = font; const w = Math.ceil(g.measureText(str).width) + 2, h = Math.ceil(size * 1.3) + 2;
-  c.width = w; c.height = h; g.font = font; g.textBaseline = 'top'; g.fillStyle = '#fff'; g.fillText(str, 1, 1);
+  const K = TEXT_K, c = document.createElement('canvas'), g = c.getContext('2d'), font = `${weight} ${size * K}px ${family}`;
+  g.font = font; const w = Math.ceil(g.measureText(str).width) + 2 * K, h = Math.ceil(size * K * 1.3) + 2 * K;
+  c.width = w; c.height = h; g.font = font; g.textBaseline = 'top'; g.fillStyle = '#fff'; g.fillText(str, K, K);
   const d = g.getImageData(0, 0, w, h), [r, gg, b] = hex(color);
   for (let i = 0; i < d.data.length; i += 4) { const on = d.data[i + 3] > 110; d.data[i] = r; d.data[i + 1] = gg; d.data[i + 2] = b; d.data[i + 3] = on ? 255 : 0; }
-  g.putImageData(d, 0, 0); textCache.set(key, c); return c;
+  g.putImageData(d, 0, 0);
+  const t = { img: c, width: Math.ceil(w / K), height: Math.ceil(h / K) };   // width/height 是场景像素
+  textCache.set(key, t); return t;
 }
+const pdraw = (g, t, x, y) => g.drawImage(t.img, x, y, t.img.width / TEXT_K, t.img.height / TEXT_K);
 function hex(c) { const n = parseInt(c.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
 
 const INV = [['00100000100', '00010001000', '00111111100', '01101110110', '11111111111', '10111111101', '10100000101', '00011011000'],
@@ -324,9 +330,14 @@ const dust = Array.from({ length: 40 }, () => ({ x: Math.random(), y: Math.rando
 
 function hallSize() {
   const W = innerWidth, Hh = innerHeight;
-  PX = W < 640 ? 3 : Math.max(2, Math.floor(Hh / 205));
+  // 选能放下「导航 + 招牌 + 小怪带 + 机器 + 底部信息板」的最大像素倍数
+  const panelH = ($('panel').offsetHeight || 120) + 30;               // 信息板实际高度（屏幕像素）
+  const bot = px => Math.max(Math.ceil(panelH / px), W < 640 ? 0 : 42);
+  const need = px => Math.round((W < 640 ? 112 : 60) / px) + 74 + CAB_H + bot(px);
+  PX = 2; for (let px = 6; px > 2; px--) if (Hh / px >= need(px) && W / px >= 120) { PX = px; break; }
+  const bottom = bot(PX);
   VW = Math.ceil(W / PX); VH = Math.ceil(Hh / PX);
-  FY = VH - (W < 640 ? 70 : 42);                                         // 底部留给信息板
+  FY = VH - bottom;                                                      // 底部留给信息板
   const row = cabs.length * (CAB_W + GAP) - GAP;
   SW = Math.max(VW, row + 80); x0 = (SW - row) / 2;
   const d = Math.min(devicePixelRatio || 1, 2);
@@ -362,17 +373,19 @@ function drawHall(t) {
   const sx = Math.round(camX + VW / 2 - sign.width / 2), sy = Math.round((innerWidth < 640 ? 112 : 60) / PX) + 4;
   g.fillStyle = '#0c0718'; g.fillRect(sx - 10, sy - 5, sign.width + 20, sign.height + sub.height + 13);
   g.fillStyle = '#2a1f45'; g.fillRect(sx - 10, sy - 5, sign.width + 20, 1); g.fillRect(sx - 10, sy + sign.height + sub.height + 7, sign.width + 20, 1);
-  g.globalAlpha = .25 * flick; g.drawImage(sign, sx - 1, sy); g.drawImage(sign, sx + 1, sy); g.drawImage(sign, sx, sy - 1); g.drawImage(sign, sx, sy + 1);
-  g.globalAlpha = flick; g.drawImage(sign, sx, sy); g.globalAlpha = 1;
+  g.globalAlpha = .25 * flick; pdraw(g, sign, sx - 1, sy); pdraw(g, sign, sx + 1, sy); pdraw(g, sign, sx, sy - 1); pdraw(g, sign, sx, sy + 1);
+  g.globalAlpha = flick; pdraw(g, sign, sx, sy); g.globalAlpha = 1;
   const ux = Math.round(sx + sign.width / 2 - sub.width / 2), uy = sy + sign.height + 2;
-  g.globalAlpha = .3; g.drawImage(sub, ux - 1, uy); g.drawImage(sub, ux + 1, uy); g.globalAlpha = 1; g.drawImage(sub, ux, uy);
+  g.globalAlpha = .3; pdraw(g, sub, ux - 1, uy); pdraw(g, sub, ux + 1, uy); g.globalAlpha = 1; pdraw(g, sub, ux, uy);
   // 墙上行进的小怪（一条装饰带）
-  const band = Math.max(uy + sub.height + 8, FY - CAB_H - 30);
+  const band = FY - CAB_H - 30, showBand = band >= uy + sub.height + 6;   // 放不下就不画小怪带
+  if (showBand) {
   g.fillStyle = 'rgba(94,242,255,.18)'; g.fillRect(0, band - 3, SW, 1); g.fillRect(0, band + 11, SW, 1);
   const cols = ['#5ef2ff', '#ff4fd8', '#ffc93c', '#7cff6b', '#ff4a4a'];
   for (let i = 0; i < SW / 22 + 2; i++) {
     const x = ((i * 22 + t * 8) % (SW + 22)) - 22;
     sprite(g, INV[(Math.floor(t * 2) + i) % 2], Math.round(x), band, cols[i % cols.length]);
+  }
   }
   // 吊灯 + 光锥
   for (let i = 0; i < cabs.length; i++) {
@@ -413,7 +426,7 @@ function drawCab(g, c, i, t) {
   g.fillStyle = live ? col : '#3a3550'; g.fillRect(x, top, CAB_W, 14);
   g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(x, top, CAB_W, 1);
   const label = ptext(c.g ? c.g.name : '???', 10, live ? '#1a0c00' : '#8d88a8');
-  g.drawImage(label, Math.round(x + CAB_W / 2 - label.width / 2), top + 1);
+  pdraw(g, label, Math.round(x + CAB_W / 2 - label.width / 2), top + 1);
   // 屏幕
   const scx = x + 8, scy = top + 19, sw = 36, sh = 28;
   g.fillStyle = '#05030a'; g.fillRect(scx - 2, scy - 2, sw + 4, sh + 4);
@@ -457,7 +470,7 @@ function drawScreen(g, c, x, y, w, h, t, i) {
     const d = ng.createImageData(36, 28);
     for (let k = 0; k < d.data.length; k += 4) { const v = Math.random() * 90 | 0; d.data[k] = d.data[k + 1] = d.data[k + 2] = v; d.data[k + 3] = 255; }
     ng.putImageData(d, 0, 0); g.drawImage(noise, 0, 0, w, h, x, y, w, h);
-    if (Math.floor(t * 1.5) % 2) { const s = ptext('SOON', 8, '#ffc93c', 900, '"Courier New",monospace'); g.fillStyle = '#000'; g.fillRect(x + w / 2 - s.width / 2 - 1, y + h / 2 - 5, s.width + 2, 11); g.drawImage(s, Math.round(x + w / 2 - s.width / 2), Math.round(y + h / 2 - 5)); }
+    if (Math.floor(t * 1.5) % 2) { const s = ptext('SOON', 8, '#ffc93c', 900, '"Courier New",monospace'); g.fillStyle = '#000'; g.fillRect(x + w / 2 - s.width / 2 - 1, y + h / 2 - 5, s.width + 2, 11); pdraw(g, s, Math.round(x + w / 2 - s.width / 2), Math.round(y + h / 2 - 5)); }
   }
 }
 
@@ -488,7 +501,7 @@ function launch() {
 function enterHall(fromCoin) {
   inHall = true; document.body.classList.add('hallmode');
   $('skip').style.display = 'none';
-  hallSize(); updatePanel();
+  updatePanel(); hallSize();
   hallCv.style.opacity = 1; coinCv.style.display = 'none';
   $('black').style.transition = 'opacity .5s'; $('black').style.opacity = 0;
   $('credit').textContent = fromCoin ? '01' : '00';
@@ -557,6 +570,7 @@ addEventListener('keydown', e => {
 $('pGo').addEventListener('click', launch);
 $('skip').addEventListener('click', e => { e.preventDefault(); C.done = true; enterHall(false); });
 addEventListener('resize', () => { coinSize(); if (inHall) hallSize(); });
+if (window.ResizeObserver) new ResizeObserver(() => { if (inHall) hallSize(); }).observe($('panel'));   // 信息板高度变了（字体加载、换机器）就重新排版
 addEventListener('pageshow', e => { if (e.persisted && H.launch) { H.launch = null; H.zoom = 1; $('white').style.opacity = 0; $('panel').classList.add('on'); } });
 
 /* ---------- 分区导航 ---------- */
