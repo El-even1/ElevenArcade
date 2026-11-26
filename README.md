@@ -25,22 +25,13 @@ python3 -m http.server 8000
 
 打开 http://localhost:8000 。`/arcade/#hall` 可以跳过投币直接进大厅。
 
-## 部署（和资本大鳄同一台服务器，Caddy）
+## 部署（GitHub Pages → https://arcade.eleven666.cyou）
 
-1. DNS：`eleven666.cyou`、`www.eleven666.cyou` 两条 A 记录指向服务器 IP。
-2. 把仓库放到服务器 `/srv/elevenarcade`（`git clone` 或 `scp -r`）。
-3. `/etc/caddy/Caddyfile`：
+仓库根目录的 `CNAME` 文件写着自定义域名，`.nojekyll` 让 Pages 原样发布静态文件。
 
-```caddyfile
-eleven666.cyou, www.eleven666.cyou {
-    root * /srv/elevenarcade
-    encode gzip
-    file_server
-}
+1. 仓库需为公开（或账号是 GitHub 付费版）。
+2. Settings → Pages → Build and deployment：Source 选 **Deploy from a branch**，分支选发布分支、目录 `/ (root)`，保存。
+3. 同一页 Custom domain 应自动显示 `arcade.eleven666.cyou`；证书签好后勾选 **Enforce HTTPS**。
+4. 域名 DNS 加一条 CNAME：主机记录 `arcade` → `el-even1.github.io`。
 
-capital-croc.eleven666.cyou {
-    reverse_proxy localhost:2567
-}
-```
-
-4. `sudo systemctl reload caddy`。更新网站只需在服务器上 `git pull`，不用重启。
+之后往发布分支推送，网站一两分钟内自动更新。
