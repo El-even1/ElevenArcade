@@ -235,7 +235,7 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
     [[124, 92, 255], [255, 92, 168], [255, 179, 71], [60, 200, 255]],
   ];
   const delay = Array.from({ length: N }, () => Math.random());
-  const pos = sphere.map(p => p.slice()), off = Array.from({ length: N }, () => [0, 0]);
+  const pos = sphere.map(p => p.slice()), off = Array.from({ length: N }, () => [0, 0, 0, 0]);   // 鼠标推开的偏移 x,y 和速度 vx,vy
 
   // 柔光贴图
   const glow = document.createElement('canvas'); glow.width = glow.height = 256;
@@ -251,8 +251,10 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
   addEventListener('resize', size); size(); addEventListener('load', size);
 
   let mx = -1e4, my = -1e4, ang = 0, angV = 0;
-  addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; });
+  let pv = 0;                                            // 指针速度，划得越快推得越开
+  addEventListener('pointermove', e => { if (mx > -1e3) pv = Math.min(60, pv + Math.hypot(e.clientX - mx, e.clientY - my)); mx = e.clientX; my = e.clientY; });
   addEventListener('pointerleave', () => { mx = my = -1e4; });
+  addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') mx = my = -1e4; });   // 手指离开屏幕
 
   // 滚动位置 → 连续的段落进度（0=球，1=11 …）
   function stage() {
@@ -273,6 +275,7 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
   function frame(now) {
     requestAnimationFrame(frame);
     const t = (now - t0) / 1000, intro = Math.min(1, t / 1.8), ez = 1 - Math.pow(1 - intro, 4);
+    pv *= .85;
     const want = Math.max(0, Math.min(SHAPES.length - 1, Math.round(stage())));
     if (want !== tgt) { from = pos.map(p => p.slice()); prevT = tgt; tgt = want; mT = t; }
     const el = (t - mT) / MORPH, f = ss(Math.max(0, Math.min(1, el)));
@@ -314,8 +317,11 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
       const pers = 2 / (2.8 - z);
       let X = cx + x * R * wob * pers, Y = cyy + y * R * wob * pers;
       const dx = X - mx, dy = Y - my, d2 = dx * dx + dy * dy;
-      if (d2 < 12100) { const d = Math.sqrt(d2) || 1, k = (1 - d2 / 12100) * 6; off[i][0] += dx / d * k; off[i][1] += dy / d * k; }
-      off[i][0] *= .9; off[i][1] *= .9; X += off[i][0]; Y += off[i][1];
+      const o = off[i];
+      if (d2 < 22500) { const d = Math.sqrt(d2) || 1, k = (1 - d2 / 22500) * (.35 + pv * .05); o[2] += dx / d * k; o[3] += dy / d * k; }
+      o[2] *= .88; o[3] *= .88; o[0] += o[2]; o[1] += o[3];   // 被推开：速度很快衰减
+      o[0] *= .982; o[1] *= .982;                            // 回原位：约 3 秒慢慢归位
+      X += o[0]; Y += o[1];
       if (X < -10 || X > W + 10 || Y < -10 || Y > H + 10) continue;
       const s = Math.max(0, Math.min(1, (z + 1) / 2));
       g.fillStyle = `rgba(255,255,255,${(.1 + s * .75) * ez * dim})`;
