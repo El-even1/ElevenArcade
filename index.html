@@ -102,6 +102,7 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
 @media (max-width:900px){
   nav.top .links a:not(.enter){display:none}
   .rail{display:none}
+  .kick{letter-spacing:.18em;font-size:12px}
   .sec{align-items:flex-end;padding-bottom:12vh}
   .sec .copy{background:linear-gradient(180deg,transparent,rgba(0,0,0,.55) 25%);margin:0 -22px;padding:40px 22px 0}
   .card{grid-template-columns:1fr}.card .art{min-height:340px}
@@ -255,7 +256,7 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
 
   // 滚动位置 → 连续的段落进度（0=球，1=11 …）
   function stage() {
-    const y = scrollY + H * .45;
+    const y = scrollY + 1;
     for (let i = anchors.length - 1; i >= 0; i--) if (y >= anchors[i]) {
       const next = anchors[i + 1] ?? anchors[i] + H, f = (y - anchors[i]) / (next - anchors[i]);
       return Math.min(SHAPES.length - 1, i + f);
@@ -268,10 +269,10 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
   function frame(now) {
     requestAnimationFrame(frame);
     const t = (now - t0) / 1000, intro = Math.min(1, t / 1.8), ez = 1 - Math.pow(1 - intro, 4);
-    S += (stage() - S) * (reduce ? 1 : .08);
+    S += (stage() - S) * (reduce ? 1 : .18);
     const a = Math.floor(S), b = Math.min(SHAPES.length - 1, a + 1);
-    // 每段前 40% 保持形状，后 60% 变形到下一个
-    const f = ss(Math.max(0, Math.min(1, (S - a - .4) / .6)));
+    // 翻页过程中从当前形状变到下一个，停在页面上时就是完整形状
+    const f = ss(Math.max(0, Math.min(1, S - a)));
     const TA = SHAPES[a], TB = SHAPES[b];
 
     g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
@@ -343,7 +344,7 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
   document.getElementById('yr').textContent = new Date().getFullYear();
 
   // 进入视口：加 .in 触发文字动画
-  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); }), { threshold: .25 });
+  const io = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('in', e.isIntersecting)), { threshold: .25 });
   document.querySelectorAll('.sec, .final, .games .head, .card, .soon').forEach(el => io.observe(el));
   // .card/.soon 自身就是 .fade
   const io2 = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.style.opacity = 1; e.target.style.transform = 'none'; } }), { threshold: .12 });
@@ -359,9 +360,71 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
     dots.forEach((d, i) => d.classList.toggle('on', i === k));
   }, { passive: true });
   dispatchEvent(new Event('scroll'));
-  // 平滑滚动锚点
+  /* ---------- 整屏翻页：滚一下直接到下一屏，中间不停 ---------- */
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pages = [...secs, document.getElementById('final')];
+  const docEnd = () => document.documentElement.scrollHeight - innerHeight;
+  const top = i => Math.min(pages[i].offsetTop, docEnd());
+  const bottom = i => (i + 1 < pages.length ? pages[i + 1].offsetTop : docEnd() + innerHeight) - innerHeight;  // 本页最后一屏的位置
+  const cur = () => { const y = scrollY + 2; let k = 0; pages.forEach((p, i) => { if (p.offsetTop <= y) k = i; }); return k; };
+  let anim = null, quietUntil = 0;
+  function scrollToY(y, upward) {
+    y = Math.max(0, Math.min(docEnd(), Math.round(y)));
+    if (reduce) { scrollTo(0, y); return; }
+    const y0 = scrollY, d = y - y0, T = Math.min(1000, 650 + Math.abs(d) / innerHeight * 250), t0 = performance.now();
+    if (Math.abs(d) < 2) return;
+    anim = true;
+    const step = now => {
+      const k = Math.min(1, (now - t0) / T), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      scrollTo(0, y0 + d * e);
+      if (k < 1) requestAnimationFrame(step); else { anim = null; quietUntil = performance.now() + 260; }
+    };
+    requestAnimationFrame(step);
+  }
+  const goTo = (i, fromBelow) => { i = Math.max(0, Math.min(pages.length - 1, i)); scrollToY(fromBelow ? bottom(i) : top(i)); };
+  // 返回 true = 已接管（翻页）；false = 当前页比一屏高，还没到头，交给浏览器正常滚
+  function flip(dir) {
+    const i = cur(), y = scrollY;
+    if (dir > 0) { if (bottom(i) - y > 4) return false; if (i < pages.length - 1) goTo(i + 1); return true; }
+    if (y - top(i) > 4) {                                  // 不在本页顶部
+      if (bottom(i) - top(i) > 4) return false;            // 长页面内部：正常往上滚
+      goTo(i); return true;                                // 普通页但位置没对齐：回到本页顶部
+    }
+    if (i > 0) goTo(i - 1, true);
+    return true;
+  }
+  const busy = () => anim || performance.now() < quietUntil;
+  addEventListener('wheel', e => {
+    if (e.ctrlKey) return;                                 // 缩放手势
+    if (busy()) { e.preventDefault(); if (!anim) quietUntil = performance.now() + 260; return; }  // 吞掉惯性滚动
+    if (Math.abs(e.deltaY) < 3) return;
+    if (flip(Math.sign(e.deltaY))) e.preventDefault();
+  }, { passive: false });
+  let ty = null, tTaken = false;
+  addEventListener('touchstart', e => { ty = e.touches[0].clientY; tTaken = false; }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (ty === null) return;
+    const dy = ty - e.touches[0].clientY;
+    if (busy() || tTaken) { e.preventDefault(); return; }
+    if (Math.abs(dy) < 8) return;
+    const i = cur(), dir = Math.sign(dy);
+    const native = dir > 0 ? bottom(i) - scrollY > 4 : scrollY - top(i) > 4;
+    if (native) { ty = null; return; }                    // 长页面内部，正常滚
+    e.preventDefault();
+    if (Math.abs(dy) > 30) { tTaken = true; flip(dir); }
+  }, { passive: false });
+  addEventListener('touchend', () => { ty = null; });
+  addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input,textarea')) return;
+    const k = e.key;
+    if (['ArrowDown', 'PageDown', ' '].includes(k)) { e.preventDefault(); if (!busy() && !flip(1)) scrollBy(0, innerHeight * .8); }
+    else if (['ArrowUp', 'PageUp'].includes(k)) { e.preventDefault(); if (!busy() && !flip(-1)) scrollBy(0, -innerHeight * .8); }
+    else if (k === 'Home') { e.preventDefault(); goTo(0); }
+    else if (k === 'End') { e.preventDefault(); goTo(pages.length - 1); }
+  });
   document.querySelectorAll('a[href^="#"]').forEach(a => a.addEventListener('click', e => {
-    const el = document.querySelector(a.getAttribute('href')); if (!el) return; e.preventDefault(); scrollTo({ top: el.offsetTop, behavior: 'smooth' });
+    const el = document.querySelector(a.getAttribute('href')); if (!el) return; e.preventDefault();
+    const i = pages.indexOf(el); i >= 0 ? goTo(i) : scrollToY(el.offsetTop);
   }));
 })();
 </script>
