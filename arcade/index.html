@@ -18,6 +18,11 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .crt{position:fixed;inset:0;pointer-events:none;z-index:30;
   background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,.65))}
 .black{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:25}
+/* 页面切换：进来时从黑暗淡入，离开时像素风逐格变黑 */
+.veil{position:fixed;inset:0;z-index:50;background:#000;pointer-events:none;animation:veilIn .8s ease-out forwards}
+@keyframes veilIn{to{opacity:0;visibility:hidden}}
+body.leaving .veil{animation:veilOut .55s steps(6) forwards;visibility:visible}
+@keyframes veilOut{from{opacity:0}to{opacity:1}}
 .white{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:26}
 
 /* ---- coin scene UI ---- */
@@ -99,6 +104,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <div class="keys">← → 选机器<br>ENTER 开始<br>ESC 退币</div>
 <div class="black" id="black"></div><div class="white" id="white"></div>
 <div class="crt"></div>
+<div class="veil"></div>
 
 <script src="../data.js"></script>
 <script>
@@ -218,7 +224,8 @@ function drawCoinScene(t) {
   const bobY = (C.drag || C.insert || C.back) ? 0 : Math.sin(t * 1.6) * 8;
   // 地面阴影
   if (!C.insert) { g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(C.x, L.cy + L.R * 1.12, L.R * .7 * C.s, L.R * .1 * C.s, 0, 0, Math.PI * 2); g.fill(); }
-  drawCoin(g, C.x, C.y + bobY, L.R * C.s, ang, t);
+  const pin = clamp((t - .2) / .9, 0, 1), pop = pin < 1 ? 1 + 2.70158 * Math.pow(pin - 1, 3) + 1.70158 * Math.pow(pin - 1, 2) : 1;   // 弹出（easeOutBack）
+  drawCoin(g, C.x, C.y + bobY, L.R * C.s * Math.max(.01, pop), ang + (1 - easeOut(pin)) * Math.PI * 3, t);
   // 投币面板（画在硬币之后 = 硬币会“掉进去”）
   const P = L.panel;
   const ped = g.createLinearGradient(0, P.y, 0, P.y + P.h + 120); ped.addColorStop(0, '#16161c'); ped.addColorStop(.55, '#101015'); ped.addColorStop(1, 'rgba(10,10,14,0)');
@@ -568,6 +575,12 @@ addEventListener('keydown', e => {
   else if (e.key === 'Escape') leaveHall();
 });
 $('pGo').addEventListener('click', launch);
+document.querySelector('.corner.l').addEventListener('click', e => {      // 回首页：像素风逐格变黑再跳转
+  if (e.metaKey || e.ctrlKey || e.shiftKey || reduce) return;
+  e.preventDefault(); document.body.classList.add('leaving');
+  const href = e.currentTarget.href; setTimeout(() => { location.href = href; }, 560);
+});
+addEventListener('pageshow', e => { if (e.persisted) document.body.classList.remove('leaving'); });
 $('skip').addEventListener('click', e => { e.preventDefault(); C.done = true; enterHall(false); });
 addEventListener('resize', () => { coinSize(); if (inHall) hallSize(); });
 if (window.ResizeObserver) new ResizeObserver(() => { if (inHall) hallSize(); }).observe($('panel'));   // 信息板高度变了（字体加载、换机器）就重新排版
