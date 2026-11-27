@@ -269,7 +269,8 @@ footer{position:absolute;left:0;right:0;bottom:0;z-index:2;max-width:1320px;marg
 
   const ss = x => x * x * (3 - 2 * x);
   // 形状切换：翻到新的一屏后，粒子先散开，再在 MORPH 秒内错开时间逐渐聚成新形状
-  const MORPH = reduce ? .01 : 2.6;
+  const MORPH = reduce ? .01 : 1.8;   // 和翻屏动画差不多同时完成
+  let fdir = 0;                     // 翻屏方向：1 往下翻，-1 往上翻
   const spread = Array.from({ length: N }, () => Math.pow(Math.random(), .7));   // 每颗粒子散开的远近
   const dir = Array.from({ length: N }, () => { const v = [R01(), R01(), R01()], l = Math.hypot(...v) || 1; return v.map(c => c / l); });
   let tgt = 0, prevT = 0, mT = 0, from = stars.map(p => p.slice());   // 开场：从星空聚成球
@@ -280,7 +281,7 @@ footer{position:absolute;left:0;right:0;bottom:0;z-index:2;max-width:1320px;marg
     const t = (now - t0) / 1000, intro = Math.min(1, t / 1.8), ez = 1 - Math.pow(1 - intro, 4);
     pv *= .85;
     const want = Math.max(0, Math.min(SHAPES.length - 1, Math.round(stage())));
-    if (want !== tgt) { from = pos.map(p => p.slice()); prevT = tgt; tgt = want; mT = t; }
+    if (want !== tgt) { from = pos.map(p => p.slice()); fdir = Math.sign(want - tgt); prevT = tgt; tgt = want; mT = t; }
     const el = (t - mT) / MORPH, f = ss(Math.max(0, Math.min(1, el)));
     const a = prevT, b = tgt, TB = SHAPES[tgt];
 
@@ -310,15 +311,15 @@ footer{position:absolute;left:0;right:0;bottom:0;z-index:2;max-width:1320px;marg
     const dim = 1 - .45 * ((prevT >= 5 ? 1 - f : 0) + (tgt >= 5 ? f : 0));
 
     for (let i = 0; i < N; i++) {
-      const pi = Math.max(0, Math.min(1, (el - delay[i] * .45) / .55)), e = ease3(pi);
-      const A = from[i], B = TB[i], p = pos[i], d = dir[i], burst = Math.sin(pi * Math.PI) * (.8 + spread[i] * 1.8);   // 中途向四面八方炸开，再聚拢
+      const pi = Math.max(0, Math.min(1, (el - delay[i] * .35) / .65)), e = ease3(pi);
+      const A = from[i], B = TB[i], p = pos[i], d = dir[i], burst = Math.sin(pi * Math.PI) * (.12 + spread[i] * .22);   // 中途轻微散开
       if (pi < 1) { p[0] = A[0] + (B[0] - A[0]) * e + d[0] * burst; p[1] = A[1] + (B[1] - A[1]) * e + d[1] * burst; p[2] = A[2] + (B[2] - A[2]) * e + d[2] * burst; }
       else { p[0] = B[0]; p[1] = B[1]; p[2] = B[2]; }
       let x = p[0] * cy0 - p[2] * sy0, z = p[0] * sy0 + p[2] * cy0;
       let y = p[1] * cx0 - z * sx0; z = p[1] * sx0 + z * cx0;
       const wob = 1 + Math.sin(t * 1.3 + delay[i] * 12) * .012;
       const pers = 2 / (2.8 - z);
-      let X = cx + x * R * wob * pers, Y = cyy + y * R * wob * pers;
+      let X = cx + x * R * wob * pers, Y = cyy + y * R * wob * pers - fdir * Math.sin(pi * Math.PI) * H * .07;   // 中途顺着翻屏方向轻轻飘一下
       const dx = X - mx, dy = Y - my, d2 = dx * dx + dy * dy;
       const o = off[i];
       if (pv > 1 && d2 < 5600) { const d = Math.sqrt(d2) || 1, k = (1 - d2 / 5600) * pv * .028; o[2] += dx / d * k; o[3] += dy / d * k; }   // 只有划动时才推开，停着不动没有影响
