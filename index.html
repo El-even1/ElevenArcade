@@ -18,7 +18,7 @@ a{color:inherit;text-decoration:none}
 .grain{position:fixed;inset:-50%;pointer-events:none;z-index:1;opacity:.06;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   animation:grain 1s steps(6) infinite}
-main{position:fixed;inset:0;z-index:2;will-change:transform;transition:transform 1.25s cubic-bezier(.77,0,.18,1)}
+main{position:fixed;inset:0;z-index:2;will-change:transform;transition:transform 1.5s cubic-bezier(.6,.05,.4,.95)}
 main.instant{transition:none}
 .page{height:100vh;height:100dvh;overflow:hidden;position:relative}
 
@@ -50,7 +50,7 @@ h1{font-weight:800;font-size:clamp(56px,7.6vw,128px);line-height:.94;letter-spac
 h2{font-weight:800;font-size:clamp(38px,5.6vw,92px);line-height:1;letter-spacing:-.045em}
 .grad{background:linear-gradient(90deg,var(--g1),var(--g2) 50%,var(--g3));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hue 6s ease-in-out infinite alternate}
 .ln{display:block;overflow:hidden;padding-bottom:.07em}
-.ln>span{display:inline-block;transform:translateY(110%);transition:transform 1.1s cubic-bezier(.2,.8,.1,1) .25s}
+.ln>span{display:inline-block;transform:translateY(110%);transition:transform 1.1s cubic-bezier(.2,.8,.1,1) .1s}
 .in .ln>span{transform:none}
 .fade{opacity:0;transform:translateY(26px);transition:opacity 1s,transform 1s cubic-bezier(.2,.8,.1,1)}
 .in .fade{opacity:1;transform:none}
@@ -393,7 +393,7 @@ body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
   rail.innerHTML = named.map(s => `<a href="#${s.id}"><span>${s.dataset.name}</span><i></i></a>`).join('');
   const dots = [...rail.children];
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const DUR = reduce ? 0 : 1250;
+  const DUR = reduce ? 0 : 1500;
   let idx = 0, busyUntil = 0;
   function place(instant) {
     if (instant) deck.classList.add('instant');
@@ -404,9 +404,17 @@ body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
     i = Math.max(0, Math.min(pages.length - 1, i));
     const now = performance.now();
     if (i === idx || now < busyUntil) return;
-    const old = pages[idx], down = i > idx;
-    old.style.setProperty('--dy', down ? '-70px' : '70px'); old.classList.add('leaving');
-    setTimeout(() => old.classList.remove('leaving'), DUR + 150);
+    const old = pages[idx], nxt = pages[i], down = i > idx;
+    // 视差：整屏滑动时，两屏的文字层只移动 65% 的距离（比背景慢），旧屏文字边走边变淡、新屏文字同时入场，全程两屏都看得到
+    if (!reduce) {
+      const P = innerHeight * .35 * (down ? 1 : -1), ez = `${DUR}ms cubic-bezier(.6,.05,.4,.95)`;
+      const layer = pg => [...pg.children].filter(el => el.tagName !== 'FOOTER' && !el.classList.contains('scrollhint'));
+      layer(old).forEach(el => { el.style.transition = `transform ${ez},opacity ${ez}`; el.style.transform = `translateY(${P}px)`; el.style.opacity = '.25'; });
+      layer(nxt).forEach(el => { el.style.transition = 'none'; el.style.transform = `translateY(${-P}px)`; el.style.opacity = '.3'; el.offsetHeight;
+        el.style.transition = `transform ${ez},opacity ${ez}`; el.style.transform = 'translateY(0)'; el.style.opacity = '1'; });
+      nxt.classList.add('in');
+      setTimeout(() => layer(old).forEach(el => { el.style.transition = 'none'; el.style.transform = ''; el.style.opacity = ''; }), DUR + 60);
+    }
     if (pages[i] === gin) gin.scrollTop = down ? 0 : gin.scrollHeight;   // 从下面回来时停在游戏列表底部
     idx = i; window.__page = i; busyUntil = now + DUR + 80;
     place(false); sync();
