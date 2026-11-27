@@ -47,10 +47,12 @@ h1{font-weight:800;font-size:clamp(56px,7.6vw,128px);line-height:.94;letter-spac
 h2{font-weight:800;font-size:clamp(38px,5.6vw,92px);line-height:1;letter-spacing:-.045em}
 .grad{background:linear-gradient(90deg,var(--g1),var(--g2) 50%,var(--g3));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hue 6s ease-in-out infinite alternate}
 .ln{display:block;overflow:hidden;padding-bottom:.07em}
-.ln>span{display:inline-block;transform:translateY(110%);transition:transform 1.1s cubic-bezier(.2,.8,.1,1)}
+.ln>span{display:inline-block;transform:translateY(110%);transition:transform 1.1s cubic-bezier(.2,.8,.1,1) .25s}
 .in .ln>span{transform:none}
 .fade{opacity:0;transform:translateY(26px);transition:opacity 1s,transform 1s cubic-bezier(.2,.8,.1,1)}
 .in .fade{opacity:1;transform:none}
+/* 翻页时离开的一屏：文字先模糊淡出 */
+.leaving .copy,.leaving.final>*{opacity:0!important;transform:translateY(var(--dy,-70px)) scale(.97);filter:blur(10px);transition:opacity .5s ease-in,transform .7s cubic-bezier(.5,0,.75,0),filter .5s ease-in}
 .lead{margin-top:28px;font-size:clamp(16px,1.6vw,20px);line-height:1.7;color:var(--dim)}
 .pts{margin-top:30px;display:flex;flex-wrap:wrap;gap:10px}
 .pts span{padding:9px 16px;border-radius:99px;border:1px solid var(--line);background:rgba(255,255,255,.04);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:14px;color:rgba(255,255,255,.85)}
@@ -252,7 +254,7 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
 
   let mx = -1e4, my = -1e4, ang = 0, angV = 0;
   let pv = 0;                                            // 指针速度，划得越快推得越开
-  addEventListener('pointermove', e => { if (mx > -1e3) pv = Math.min(60, pv + Math.hypot(e.clientX - mx, e.clientY - my)); mx = e.clientX; my = e.clientY; });
+  addEventListener('pointermove', e => { if (mx > -1e3) pv = Math.min(40, pv + Math.hypot(e.clientX - mx, e.clientY - my)); mx = e.clientX; my = e.clientY; });
   addEventListener('pointerleave', () => { mx = my = -1e4; });
   addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') mx = my = -1e4; });   // 手指离开屏幕
 
@@ -318,7 +320,7 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
       let X = cx + x * R * wob * pers, Y = cyy + y * R * wob * pers;
       const dx = X - mx, dy = Y - my, d2 = dx * dx + dy * dy;
       const o = off[i];
-      if (d2 < 22500) { const d = Math.sqrt(d2) || 1, k = (1 - d2 / 22500) * (.35 + pv * .05); o[2] += dx / d * k; o[3] += dy / d * k; }
+      if (pv > 1 && d2 < 5600) { const d = Math.sqrt(d2) || 1, k = (1 - d2 / 5600) * pv * .028; o[2] += dx / d * k; o[3] += dy / d * k; }   // 只有划动时才推开，停着不动没有影响
       o[2] *= .88; o[3] *= .88; o[0] += o[2]; o[1] += o[3];   // 被推开：速度很快衰减
       o[0] *= .982; o[1] *= .982;                            // 回原位：约 3 秒慢慢归位
       X += o[0]; Y += o[1];
@@ -381,11 +383,17 @@ footer{position:relative;z-index:2;max-width:1320px;margin:0 auto;padding:36px c
   function scrollToY(y, upward) {
     y = Math.max(0, Math.min(docEnd(), Math.round(y)));
     if (reduce) { scrollTo(0, y); return; }
-    const y0 = scrollY, d = y - y0, T = Math.min(1000, 650 + Math.abs(d) / innerHeight * 250), t0 = performance.now();
+    const y0 = scrollY, d = y - y0, T = Math.min(1500, 1150 + Math.abs(d) / innerHeight * 150), t0 = performance.now();
     if (Math.abs(d) < 2) return;
     anim = true;
+    // 当前这一屏的文字先淡出、往翻页方向飘走，再整屏滑到下一页，下一页文字随后入场
+    const leaving = pages[cur()];
+    if (leaving && Math.abs(d) > innerHeight * .5) {
+      leaving.style.setProperty('--dy', d > 0 ? '-70px' : '70px'); leaving.classList.add('leaving');
+      setTimeout(() => leaving.classList.remove('leaving'), T + 200);
+    }
     const step = now => {
-      const k = Math.min(1, (now - t0) / T), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      const k = Math.min(1, (now - t0) / T), e = k < .5 ? 8 * k * k * k * k : 1 - Math.pow(-2 * k + 2, 4) / 2;   // 缓入缓出（四次方）
       scrollTo(0, y0 + d * e);
       if (k < 1) requestAnimationFrame(step); else { anim = null; quietUntil = performance.now() + 260; }
     };
