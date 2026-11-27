@@ -48,8 +48,9 @@ nav.top .enter:hover{color:#000;transform:translateY(-1px)}
 .num::after{content:"";width:60px;height:1px;background:rgba(255,255,255,.35)}
 h1{font-weight:800;font-size:clamp(56px,7.6vw,128px);line-height:.94;letter-spacing:-.05em}
 h2{font-weight:800;font-size:clamp(38px,5.6vw,92px);line-height:1;letter-spacing:-.045em}
-.grad{background:linear-gradient(90deg,var(--g1),var(--g2) 50%,var(--g3));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hue 6s ease-in-out infinite alternate}
-.ln{display:block;overflow:hidden;padding-bottom:.07em}
+.grad{padding-bottom:.12em;background:linear-gradient(90deg,var(--g1),var(--g2) 50%,var(--g3));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hue 6s ease-in-out infinite alternate}
+.ln{display:block;overflow:hidden;padding-bottom:.22em;margin-bottom:-.15em}   /* 给 g、y 的下伸部分留空间 */
+.ln>span{padding-bottom:.18em;margin-bottom:-.18em}   /* 渐变字只在自身方框内上色，方框要包住下伸部分 */
 .ln>span{display:inline-block;transform:translateY(110%);transition:transform 1.1s cubic-bezier(.2,.8,.1,1) .1s}
 .in .ln>span{transform:none}
 .fade{opacity:0;transform:translateY(26px);transition:opacity 1s,transform 1s cubic-bezier(.2,.8,.1,1)}
