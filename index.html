@@ -100,15 +100,6 @@ h2{font-weight:800;font-size:clamp(38px,5.6vw,92px);line-height:1;letter-spacing
 .final .lead{max-width:520px}
 footer{position:absolute;left:0;right:0;bottom:0;z-index:2;max-width:1320px;margin:0 auto;text-align:left;padding:36px clamp(22px,6vw,90px) max(36px,env(safe-area-inset-bottom));display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;color:var(--dim);font-size:13px;border-top:1px solid var(--line)}
 
-/* 页面切换 */
-.veil{position:fixed;inset:0;z-index:60;pointer-events:none;background:#000;animation:veilIn .9s ease-out forwards}
-@keyframes veilIn{to{opacity:0;visibility:hidden}}
-.flash{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;background:radial-gradient(circle at var(--fx,68%) var(--fy,50%),#fff 0,#ffe7a3 8%,rgba(255,170,60,.55) 22%,transparent 55%)}
-body.exiting main,body.exiting nav.top,body.exiting .rail{opacity:0;transition:opacity .45s ease-in}   /* main 不能改 transform（翻页在用） */
-body.exiting .flash{animation:flash 1.3s ease-out forwards}
-body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
-@keyframes flash{0%,36%{opacity:0}42%{opacity:1}100%{opacity:0}}
-@keyframes veilOut{0%,70%{opacity:0}100%{opacity:1}}
 @keyframes hue{to{background-position:100% 0}}
 @keyframes pulse{50%{opacity:.35}}
 @keyframes drip{0%{transform:scaleY(0)}50%{transform:scaleY(1)}100%{transform:scaleY(1);opacity:0}}
@@ -129,8 +120,6 @@ body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
 <body>
 <canvas id="fx" aria-hidden="true"></canvas>
 <div class="grain"></div>
-<div class="flash" id="flash"></div>
-<div class="veil" id="veil"></div>
 
 <nav class="top" id="nav">
   <a class="brand" href="#top"><i></i>Eleven Arcade</a>
@@ -283,9 +272,6 @@ body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
   const dir = Array.from({ length: N }, () => { const v = [R01(), R01(), R01()], l = Math.hypot(...v) || 1; return v.map(c => c / l); });
   let tgt = 0, prevT = 0, mT = 0, from = stars.map(p => p.slice());   // 开场：从星空聚成球
   const ease3 = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-  // 进入游戏世界：粒子先收缩成光点，再拉成光线冲出屏幕
-  let warpAt = 0;
-  window.__warp = () => { warpAt = performance.now(); };
   const t0 = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
@@ -321,7 +307,6 @@ body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
     const R = Math.min(W * (mobile ? .38 : .25), H * (mobile ? .25 : .34)) * (.4 + .6 * ez);
     const dim = 1 - .45 * ((prevT >= 5 ? 1 - f : 0) + (tgt >= 5 ? f : 0));
 
-    const w = warpAt ? (now - warpAt) / 1000 : -1;
     for (let i = 0; i < N; i++) {
       const pi = Math.max(0, Math.min(1, (el - delay[i] * .45) / .55)), e = ease3(pi);
       const A = from[i], B = TB[i], p = pos[i], d = dir[i], burst = Math.sin(pi * Math.PI) * .6;   // 中途向外散开
@@ -338,16 +323,6 @@ body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
       o[2] *= .88; o[3] *= .88; o[0] += o[2]; o[1] += o[3];   // 被推开：速度很快衰减
       o[0] *= .982; o[1] *= .982;                            // 回原位：约 3 秒慢慢归位
       X += o[0]; Y += o[1];
-      if (w >= 0) {
-        const sv = Math.max(0, Math.min(1, (z + 1) / 2));
-        if (w < .5) { const c = 1 - ease3(w / .5) * (.92 + delay[i] * .08); X = cx + (X - cx) * c; Y = cyy + (Y - cyy) * c; }
-        else {                                                  // 光线向外冲出
-          const k = (w - .5) / .75, bb = .02 + k * k * (10 + delay[i] * 8), b0 = bb * .55;
-          g.strokeStyle = `rgba(255,${235 - k * 60 | 0},${200 - k * 120 | 0},${(.35 + sv * .65) * (1 - k * .4)})`; g.lineWidth = .6 + sv * 1.6;
-          g.beginPath(); g.moveTo(cx + (X - cx) * b0, cyy + (Y - cyy) * b0); g.lineTo(cx + (X - cx) * bb, cyy + (Y - cyy) * bb); g.stroke();
-          continue;
-        }
-      }
       if (X < -10 || X > W + 10 || Y < -10 || Y > H + 10) continue;
       const s = Math.max(0, Math.min(1, (z + 1) / 2));
       g.fillStyle = `rgba(255,255,255,${(.1 + s * .75) * ez * dim})`;
@@ -464,18 +439,6 @@ body.exiting .veil{animation:veilOut 1.3s ease-in forwards;visibility:visible}
     const el = document.querySelector(a.getAttribute('href')); const i = pages.indexOf(el); if (i < 0) return;
     e.preventDefault(); busyUntil = 0; goTo(i);
   }));
-  // 进入游戏世界：粒子穿越动画后再跳转
-  document.querySelectorAll('a[href="arcade/"]').forEach(a => a.addEventListener('click', e => {
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;   // 新标签页打开就不拦
-    e.preventDefault(); if (document.body.classList.contains('exiting')) return;
-    if (reduce) { location.href = a.href; return; }
-    const fl = document.getElementById('flash'), mob = innerWidth < 900;
-    fl.style.setProperty('--fx', mob ? '50%' : '68%'); fl.style.setProperty('--fy', mob ? '32%' : '50%');
-    const v = document.getElementById('veil'); v.style.animation = 'none'; v.offsetHeight; v.style.animation = '';
-    document.body.classList.add('exiting'); window.__warp && window.__warp();
-    setTimeout(() => { location.href = a.href; }, 1300);
-  }));
-  addEventListener('pageshow', e => { if (e.persisted) document.body.classList.remove('exiting'); });   // 从游戏世界按返回
   addEventListener('resize', () => place(true));
   window.__page = 0; place(true); sync();
 })();
