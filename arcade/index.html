@@ -50,6 +50,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   transition:opacity .5s,transform .5s;background:#0b0716;border:3px solid #fff;box-shadow:0 0 0 3px #000,6px 6px 0 3px #000,0 0 30px rgba(255,79,216,.35);
   padding:16px 18px;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;image-rendering:pixelated}
 .panel.on{opacity:1;transform:translate(-50%,0)}
+.panel{align-content:center}
 .panel img{width:64px;height:64px;image-rendering:pixelated;border:3px solid var(--gold);background:#222}
 .panel .nm{font-size:22px;font-weight:900;letter-spacing:.08em;font-family:"PingFang SC","Microsoft YaHei",sans-serif}
 .panel .nm small{font-family:var(--mono);font-size:12px;letter-spacing:.3em;color:var(--gold);margin-left:10px}
@@ -331,7 +332,11 @@ const dust = Array.from({ length: 40 }, () => ({ x: Math.random(), y: Math.rando
 function hallSize() {
   const W = innerWidth, Hh = innerHeight;
   // 选能放下「导航 + 招牌 + 小怪带 + 机器 + 底部信息板」的最大像素倍数
-  const panelH = ($('panel').offsetHeight || 120) + 30;               // 信息板实际高度（屏幕像素）
+  // 信息板按所有机器里最高的那块定高：切换机器时信息板不变高矮，机器也就不会上下跳
+  const pn = $('panel'), keep = sel; pn.style.minHeight = '';
+  let tallest = 0; for (let i = 0; i < cabs.length; i++) { sel = i; updatePanel(); tallest = Math.max(tallest, pn.offsetHeight); }
+  sel = keep; updatePanel(); pn.style.minHeight = tallest + 'px';
+  const panelH = (tallest || 120) + 30;                                  // 信息板高度（屏幕像素）
   const bot = px => Math.max(Math.ceil(panelH / px), W < 640 ? 0 : 42);
   const need = px => Math.round((W < 640 ? 112 : 60) / px) + 74 + CAB_H + bot(px);
   PX = 2; for (let px = 6; px > 2; px--) if (Hh / px >= need(px) && W / px >= 120) { PX = px; break; }
